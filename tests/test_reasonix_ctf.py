@@ -22,6 +22,9 @@ def test_reasonix_profile_installer_writes_reasonix_toml(tmp_path, monkeypatch):
     assert '[agent]' in text
     assert 'system_prompt_file = "prompts/ctf_optimized.md"' in text
     assert launcher.exists()
+    launcher_text = launcher.read_text(encoding='ascii')
+    assert 'taskkill /IM reasonix-desktop.exe /F' in launcher_text
+    assert 'start "" /D "%~dp0"' in launcher_text
 
     status = check_ctf_status()
     assert status.reasonix_profile_installed is True

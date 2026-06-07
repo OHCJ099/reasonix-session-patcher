@@ -17,7 +17,7 @@ from .core import (
     clean_session_jsonl,
 )
 
-__version__ = "1.5.2+reasonix.3"
+__version__ = "1.5.3+reasonix.4"
 __all__ = [
     'REFUSAL_KEYWORDS',
     'MOCK_RESPONSE',

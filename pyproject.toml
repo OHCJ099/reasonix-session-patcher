@@ -1,6 +1,6 @@
 [project]
 name = "codex-session-patcher-reasonix"
-version = "1.5.2+reasonix.3"
+version = "1.5.3+reasonix.4"
 description = "AI coding session cleaner adapted for Reasonix Desktop, Codex, Claude Code, and OpenCode"
 readme = "README.md"
 requires-python = ">=3.8"
