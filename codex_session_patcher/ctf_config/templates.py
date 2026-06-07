@@ -30,6 +30,29 @@ OPENCODE_CTF_OPTIMIZED = _load_prompt("opencode_ctf_optimized.md")
 REASONIX_CTF_OPTIMIZED = _load_prompt("reasonix_ctf_optimized.md")
 
 
+def adapt_codex_prompt_to_reasonix(prompt: str) -> str:
+    """将历史 Codex CTF 提示词转换为 Reasonix Desktop/CLI 语境。
+
+    这里用于两处：
+    1. 内置模板：复用上游 Codex 的简版/通用模板，但展示为 Reasonix 模板；
+    2. 兼容迁移：用户过去保存到 codex 模板槽里的自定义模板，在 Reasonix UI 中可继续看到。
+    """
+    replacements = {
+        "Codex CLI": "Reasonix Desktop / Reasonix CLI",
+        "Codex": "Reasonix",
+        "codex -p ctf": "reasonix.exe chat",
+        "~/.codex": "%APPDATA%/reasonix",
+    }
+    result = prompt
+    for old, new in replacements.items():
+        result = result.replace(old, new)
+    return result
+
+
+REASONIX_CTF_PRIVATE_DEPLOY = adapt_codex_prompt_to_reasonix(SECURITY_MODE_PROMPT)
+REASONIX_CTF_GENERAL = adapt_codex_prompt_to_reasonix(SECURITY_MODE_PROMPT_GENERAL)
+
+
 # Codex profile v2 配置模板。Codex CLI 0.134.0+ 通过 ~/.codex/<name>.config.toml 加载 -p <name>。
 CTF_CONFIG_TEMPLATE = '''# Codex CTF profile managed by codex-session-patcher
 developer_instructions = """
@@ -43,6 +66,8 @@ developer_instructions = """
 BUILTIN_TEMPLATES: dict = {
     'reasonix': [
         {'name': 'Optimized CTF Workflow', 'prompt': REASONIX_CTF_OPTIMIZED, 'file': 'ctf_optimized.md', 'default': True},
+        {'name': 'CTF Private Deploy', 'prompt': REASONIX_CTF_PRIVATE_DEPLOY, 'file': 'ctf_private_deploy.md'},
+        {'name': 'General Security Testing', 'prompt': REASONIX_CTF_GENERAL, 'file': 'ctf_general.md'},
     ],
     'codex': [
         {'name': 'Optimized CTF Workflow', 'prompt': SECURITY_MODE_PROMPT_OPTIMIZED, 'file': 'ctf_optimized.md', 'default': True},

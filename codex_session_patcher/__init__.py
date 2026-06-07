@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Codex Session Patcher - 会话清理工具
 
@@ -17,7 +17,7 @@ from .core import (
     clean_session_jsonl,
 )
 
-__version__ = "1.5.1+reasonix.2"
+__version__ = "1.5.2+reasonix.3"
 __all__ = [
     'REFUSAL_KEYWORDS',
     'MOCK_RESPONSE',

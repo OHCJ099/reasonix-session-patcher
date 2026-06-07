@@ -1127,7 +1127,7 @@ async def install_reasonix_ctf_config(body: Optional[CTFInstallRequest] = None):
     from codex_session_patcher.ctf_config import ReasonixCTFInstaller
     installer = ReasonixCTFInstaller()
     settings_data = _load_raw_config()
-    custom_prompt = settings_data.get('ctf_prompts', {}).get('reasonix', {}).get('prompt')
+    custom_prompt = _get_saved_reasonix_prompt_from_config(settings_data)
     success, message = installer.install(custom_prompt=custom_prompt)
 
     await manager.broadcast(WSMessage(
@@ -1173,7 +1173,7 @@ async def install_reasonix_global_ctf_config(body: Optional[CTFInstallRequest] =
     from codex_session_patcher.ctf_config import ReasonixCTFInstaller
     installer = ReasonixCTFInstaller()
     settings_data = _load_raw_config()
-    custom_prompt = settings_data.get('ctf_prompts', {}).get('reasonix', {}).get('prompt')
+    custom_prompt = _get_saved_reasonix_prompt_from_config(settings_data)
     success, message = installer.install_global(custom_prompt=custom_prompt)
 
     await manager.broadcast(WSMessage(
@@ -1404,6 +1404,17 @@ def _save_raw_config(data: dict):
     os.chmod(DEFAULT_CONFIG_FILE, 0o600)
 
 
+def _get_saved_reasonix_prompt_from_config(config: dict) -> str | None:
+    """读取 Reasonix 保存提示词；没有时兼容旧 Codex 槽位并转换语境。"""
+    saved = config.get('ctf_prompts', {}).get('reasonix', {}).get('prompt')
+    if saved:
+        return saved
+    legacy_saved = config.get('ctf_prompts', {}).get('codex', {}).get('prompt')
+    if legacy_saved:
+        return _adapt_legacy_codex_prompt_for_reasonix(legacy_saved)
+    return None
+
+
 _CTF_PROMPT_PATHS = {
     'reasonix': default_reasonix_prompt_path(),
     'codex': expand_user_path("~/.codex/prompts/ctf_optimized.md"),
@@ -1571,6 +1582,10 @@ def _read_ctf_prompt_for_tool(tool: str) -> str | None:
     # 其次读用户保存到配置的自定义提示词
     config = _load_raw_config()
     saved = config.get('ctf_prompts', {}).get(tool, {}).get('prompt')
+    if saved is None and tool == 'reasonix':
+        legacy_saved = config.get('ctf_prompts', {}).get('codex', {}).get('prompt')
+        if legacy_saved:
+            saved = _adapt_legacy_codex_prompt_for_reasonix(legacy_saved)
     return saved or None
 
 
@@ -1620,6 +1635,10 @@ async def get_ctf_prompt(tool: str):
     # 未安装：从配置或默认模板
     config = _load_raw_config()
     saved = config.get('ctf_prompts', {}).get(tool, {}).get('prompt')
+    if saved is None and tool == 'reasonix':
+        legacy_saved = config.get('ctf_prompts', {}).get('codex', {}).get('prompt')
+        if legacy_saved:
+            saved = _adapt_legacy_codex_prompt_for_reasonix(legacy_saved)
 
     return {
         "prompt": saved or default_prompt,
@@ -1720,6 +1739,53 @@ async def reset_ctf_prompt(tool: str):
 MAX_TEMPLATES = 5
 
 
+def _adapt_legacy_codex_prompt_for_reasonix(prompt: str) -> str:
+    """把历史 Codex 模板内容迁移成 Reasonix 语境。"""
+    from codex_session_patcher.ctf_config.templates import adapt_codex_prompt_to_reasonix
+    return adapt_codex_prompt_to_reasonix(prompt or "")
+
+
+def _ensure_reasonix_legacy_templates_migrated(config: dict) -> bool:
+    """把旧配置里 ctf_templates.codex 的用户模板复制到 reasonix 槽位。
+
+    这解决从旧版 UI 迁移后，Reasonix 页只剩内置模板、用户自定义模板“消失”的问题。
+    只复制缺失名称，不删除/修改原 Codex 模板，最多补到 MAX_TEMPLATES 个 Reasonix 用户模板。
+    """
+    all_templates = config.setdefault('ctf_templates', {})
+    codex_templates = all_templates.get('codex', []) or []
+    if not codex_templates:
+        return False
+
+    reasonix_templates = all_templates.setdefault('reasonix', [])
+    existing_names = {tpl.get('name') for tpl in reasonix_templates}
+    changed = False
+
+    for tpl in codex_templates:
+        name = tpl.get('name')
+        if not name or name in existing_names:
+            continue
+        if len(reasonix_templates) >= MAX_TEMPLATES:
+            break
+        reasonix_templates.append({
+            "name": name,
+            "prompt": _adapt_legacy_codex_prompt_for_reasonix(tpl.get('prompt', '')),
+            "migrated_from": "codex",
+        })
+        existing_names.add(name)
+        changed = True
+
+    if changed:
+        all_templates['reasonix'] = reasonix_templates
+    return changed
+
+
+def _get_user_templates(config: dict, tool: str) -> list[dict]:
+    """读取用户模板；Reasonix 会先兼容迁移旧 Codex 用户模板。"""
+    if tool == 'reasonix' and _ensure_reasonix_legacy_templates_migrated(config):
+        _save_raw_config(config)
+    return config.get('ctf_templates', {}).get(tool, []) or []
+
+
 @router.get("/ctf/prompt/{tool}/templates")
 async def list_ctf_templates(tool: str):
     """获取工具的所有提示词模板（内置模板 + 用户模板），不返回 prompt 内容"""
@@ -1730,7 +1796,7 @@ async def list_ctf_templates(tool: str):
     builtin = [{k: v for k, v in t.items() if k != 'prompt'} | {'builtin': True} for t in BUILTIN_TEMPLATES.get(tool, [])]
 
     config = _load_raw_config()
-    user_templates = config.get('ctf_templates', {}).get(tool, [])
+    user_templates = _get_user_templates(config, tool)
     # 用户模板也不返回 prompt 内容
     user_templates_lite = [{k: v for k, v in t.items() if k != 'prompt'} for t in user_templates]
     return {"templates": builtin + user_templates_lite}
@@ -1748,7 +1814,7 @@ async def get_ctf_template_prompt(tool: str, template_name: str):
             return {"name": tpl['name'], "prompt": tpl.get('prompt', '')}
 
     config = _load_raw_config()
-    for tpl in config.get('ctf_templates', {}).get(tool, []):
+    for tpl in _get_user_templates(config, tool):
         if tpl.get('name') == template_name:
             return {"name": tpl['name'], "prompt": tpl.get('prompt', '')}
 
