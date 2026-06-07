@@ -6,6 +6,14 @@ from pathlib import Path
 def test_reasonix_profile_installer_writes_reasonix_toml(tmp_path, monkeypatch):
     monkeypatch.setenv('APPDATA', str(tmp_path / 'AppData'))
     monkeypatch.setenv('LOCALAPPDATA', str(tmp_path / 'LocalAppData'))
+    workspace = tmp_path / 'project'
+    workspace.mkdir()
+    sessions = tmp_path / 'AppData' / 'reasonix' / 'sessions'
+    sessions.mkdir(parents=True)
+    (sessions / 'latest.jsonl.meta').write_text(
+        '{"workspace_root": "%s"}' % str(workspace).replace('\\', '\\\\'),
+        encoding='utf-8',
+    )
     from codex_session_patcher.ctf_config.installer import ReasonixCTFInstaller
     from codex_session_patcher.ctf_config.status import check_ctf_status
 
@@ -15,16 +23,13 @@ def test_reasonix_profile_installer_writes_reasonix_toml(tmp_path, monkeypatch):
 
     config = Path(installer.profile_config_path)
     prompt = Path(installer.profile_prompt_path)
-    launcher = Path(installer.profile_launcher_path)
+    assert installer.workspace_dir == str(workspace)
     assert config.exists()
     assert prompt.read_text(encoding='utf-8') == 'Reasonix CTF Prompt'
     text = config.read_text(encoding='utf-8')
     assert '[agent]' in text
-    assert 'system_prompt_file = "prompts/ctf_optimized.md"' in text
-    assert launcher.exists()
-    launcher_text = launcher.read_text(encoding='ascii')
-    assert 'taskkill /IM reasonix-desktop.exe /F' in launcher_text
-    assert 'start "" /D "%~dp0"' in launcher_text
+    assert 'system_prompt_file = ".reasonix/prompts/ctf_optimized.md"' in text
+    assert 'reasonix-ctf-workspace' not in text
 
     status = check_ctf_status()
     assert status.reasonix_profile_installed is True

@@ -5,6 +5,7 @@ CTF 配置状态检查
 
 import os
 import re
+import json
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -48,8 +49,50 @@ def default_reasonix_prompt_path() -> str:
     return os.path.join(default_reasonix_dir(), "prompts", DEFAULT_CODEX_PROMPT_FILE)
 
 
+def detect_reasonix_profile_workspace() -> Optional[str]:
+    """从 Reasonix Desktop 最近会话中识别当前项目工作区。
+
+    Reasonix Desktop 会在 `%APPDATA%/reasonix/sessions/*.jsonl.meta` 里记录
+    `workspace_root`。Profile 模式应当写入这个工作区下的 `reasonix.toml`，
+    而不是另造一个独立启动目录。
+    """
+    sessions_dir = os.path.join(default_reasonix_dir(), "sessions")
+    if not os.path.isdir(sessions_dir):
+        return None
+
+    try:
+        meta_files = [
+            os.path.join(sessions_dir, name)
+            for name in os.listdir(sessions_dir)
+            if name.endswith(".jsonl.meta")
+        ]
+    except OSError:
+        return None
+
+    meta_files.sort(key=lambda path: os.path.getmtime(path), reverse=True)
+    for meta_path in meta_files:
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+            workspace = meta.get("workspace_root") or meta.get("cwd") or meta.get("workspace")
+            if workspace:
+                workspace = os.path.normpath(workspace)
+                if os.path.isdir(workspace):
+                    return workspace
+        except Exception:
+            continue
+    return None
+
+
 def default_reasonix_profile_workspace() -> str:
-    return os.path.join(os.environ.get("APPDATA", expand_user_path("~")), "reasonix-ctf-workspace")
+    return detect_reasonix_profile_workspace() or os.path.join(
+        os.environ.get("APPDATA", expand_user_path("~")),
+        "reasonix-ctf-workspace",
+    )
+
+
+def reasonix_profile_prompt_path_for_workspace(workspace: str) -> str:
+    return os.path.join(workspace, ".reasonix", "prompts", DEFAULT_CODEX_PROMPT_FILE)
 
 
 @dataclass
@@ -237,15 +280,14 @@ def check_ctf_status() -> CTFStatus:
     # ── Reasonix Desktop 检查 ──
     reasonix_workspace = default_reasonix_profile_workspace()
     reasonix_profile_config = os.path.join(reasonix_workspace, "reasonix.toml")
-    reasonix_profile_prompt = os.path.join(reasonix_workspace, "prompts", DEFAULT_CODEX_PROMPT_FILE)
-    reasonix_launcher = os.path.join(reasonix_workspace, "start_reasonix_ctf.bat")
+    reasonix_profile_prompt = reasonix_profile_prompt_path_for_workspace(reasonix_workspace)
     reasonix_global_config = default_reasonix_global_config()
     reasonix_global_prompt = default_reasonix_prompt_path()
 
     status.reasonix_profile_workspace_path = reasonix_workspace
     status.reasonix_profile_config_path = reasonix_profile_config
     status.reasonix_profile_prompt_path = reasonix_profile_prompt
-    status.reasonix_profile_launcher_path = reasonix_launcher
+    status.reasonix_profile_launcher_path = None
     status.reasonix_profile_workspace_exists = os.path.isdir(reasonix_workspace)
     status.reasonix_profile_prompt_exists = os.path.exists(reasonix_profile_prompt)
     if os.path.exists(reasonix_profile_config):

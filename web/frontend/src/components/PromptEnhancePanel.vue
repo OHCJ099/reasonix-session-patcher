@@ -66,7 +66,7 @@
                   <n-button v-else type="warning" size="small" :loading="ctfStore.reasonixInstallLoading" @click="handleReasonixUninstall">{{ $t('enhance.disable') }}</n-button>
                 </div>
                 <p v-if="ctfStore.status?.reasonix_profile_installed" class="command-inline-hint">
-                  {{ $t('enhance.activationCommand') }}: <code>{{ ctfStore.status?.reasonix_profile_launcher_path }}</code>
+                  {{ $t('enhance.profileConfigPath') }}: <code>{{ ctfStore.status?.reasonix_profile_config_path }}</code>
                 </p>
               </div>
 

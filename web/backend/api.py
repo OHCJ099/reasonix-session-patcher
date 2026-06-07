@@ -1136,12 +1136,11 @@ async def install_reasonix_ctf_config(body: Optional[CTFInstallRequest] = None):
     ))
 
     status = await _build_ctf_status_response()
-    activation = status.reasonix_profile_launcher_path or ""
     return CTFInstallResponse(
         success=success,
         message=message,
-        profile_command=activation,
-        activation_command=activation,
+        profile_command=status.reasonix_profile_config_path or "",
+        activation_command="在当前 Reasonix 项目中新建对话",
         status=status,
     )
 

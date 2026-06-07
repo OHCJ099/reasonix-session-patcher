@@ -22,6 +22,7 @@ from .status import (
     DEFAULT_CLAUDE_CTF_WORKSPACE, DEFAULT_OPENCODE_CTF_WORKSPACE,
     expand_user_path, default_reasonix_dir, default_reasonix_global_config,
     default_reasonix_prompt_path, default_reasonix_profile_workspace,
+    detect_reasonix_profile_workspace, reasonix_profile_prompt_path_for_workspace,
 )
 
 
@@ -706,25 +707,26 @@ class CTFConfigInstaller:
 class ReasonixCTFInstaller:
     """Reasonix Desktop CTF 配置安装器。
 
-    - Profile 模式：创建专用工作区 `%APPDATA%/reasonix-ctf-workspace`，
-      通过该目录下的 `reasonix.toml` 注入 `[agent].system_prompt_file`。
+    - Profile 模式：自动识别最近 Reasonix Desktop 项目工作区，
+      直接写入该目录下的 `reasonix.toml`，不再需要独立启动脚本。
     - 全局模式：修改 `%APPDATA%/reasonix/config.toml` 的 `[agent]` 段，
       注入 `system_prompt_file`，影响所有新 Reasonix 会话。
     """
 
     DEFAULT_PROMPT_FILE = "ctf_optimized.md"
 
-    def __init__(self):
+    def __init__(self, workspace_dir: str = None):
         self.reasonix_dir = default_reasonix_dir()
         self.global_config_path = default_reasonix_global_config()
         self.global_prompts_dir = os.path.join(self.reasonix_dir, "prompts")
         self.global_prompt_path = default_reasonix_prompt_path()
-        self.workspace_dir = default_reasonix_profile_workspace()
+        self.detected_workspace_dir = workspace_dir or detect_reasonix_profile_workspace()
+        self.workspace_dir = self.detected_workspace_dir or default_reasonix_profile_workspace()
         self.profile_config_path = os.path.join(self.workspace_dir, "reasonix.toml")
-        self.profile_prompts_dir = os.path.join(self.workspace_dir, "prompts")
-        self.profile_prompt_path = os.path.join(self.profile_prompts_dir, self.DEFAULT_PROMPT_FILE)
-        self.profile_launcher_path = os.path.join(self.workspace_dir, "start_reasonix_ctf.bat")
-        self.profile_readme_path = os.path.join(self.workspace_dir, "README.md")
+        self.profile_prompt_path = reasonix_profile_prompt_path_for_workspace(self.workspace_dir)
+        self.profile_prompts_dir = os.path.dirname(self.profile_prompt_path)
+        self.profile_launcher_path = None
+        self.profile_readme_path = None
 
     def _get_prompt_content(self) -> str:
         try:
@@ -752,81 +754,45 @@ class ReasonixCTFInstaller:
     def install(self, custom_prompt: str = None, injection_mode: str = "system_prompt_file") -> tuple[bool, str]:
         """安装 Reasonix Profile CTF 模式。"""
         try:
+            if not self.detected_workspace_dir:
+                return False, (
+                    "Reasonix Profile 模式安装失败: 未检测到当前 Reasonix 项目工作区。"
+                    "请先在 Reasonix Desktop 打开目标项目/新建一次对话，然后再点击启用。"
+                )
             prompt = custom_prompt or self._get_prompt_content()
-            os.makedirs(self.workspace_dir, exist_ok=True)
             self._write_prompt(self.profile_prompt_path, prompt)
 
-            profile_config = "\n".join([
-                f"{REASONIX_MARKER} Reasonix CTF profile managed by reasonix-session-patcher",
-                "config_version = 2",
-                "",
-                "[agent]",
-                f'system_prompt_file = "prompts/{self.DEFAULT_PROMPT_FILE}"',
-                "",
-                "[permissions]",
-                'mode = "allow"',
-                "",
-                "[sandbox]",
-                "network = true",
-                "",
-            ])
+            content = ""
+            if os.path.exists(self.profile_config_path):
+                content = open(self.profile_config_path, "r", encoding="utf-8").read()
+                self._backup_config(self.profile_config_path)
+
+            lines = content.splitlines()
+            if not lines:
+                lines = ["config_version = 2", ""]
+            lines, _ = self._remove_managed_reasonix_agent_block(lines)
+            unmanaged = self._find_unmanaged_reasonix_agent_prompt(lines)
+            if unmanaged:
+                return False, (
+                    f"Reasonix Profile 模式安装失败: 当前工作区 [agent] 中已有 {unmanaged}。"
+                    "为避免覆盖你的配置，请先手动删除该项，或改用全局模式。"
+                )
+
+            rel_prompt = os.path.relpath(self.profile_prompt_path, self.workspace_dir).replace("\\", "/")
+            lines = self._insert_reasonix_agent_block(
+                lines,
+                rel_prompt,
+                label="profile",
+                absolute=False,
+            )
             with open(self.profile_config_path, "w", encoding="utf-8") as f:
-                f.write(profile_config)
-
-            reasonix_desktop = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Reasonix", "reasonix-desktop.exe")
-            launcher = "\n".join([
-                "@echo off",
-                "setlocal",
-                'cd /d "%~dp0"',
-                'echo Starting Reasonix Desktop with local CTF profile...',
-                "echo Workspace: %CD%",
-                "echo.",
-                "",
-                'tasklist /FI "IMAGENAME eq reasonix-desktop.exe" 2>nul | find /I "reasonix-desktop.exe" >nul',
-                "if not errorlevel 1 (",
-                "  echo Existing Reasonix Desktop process detected.",
-                "  echo Reasonix Desktop may reuse the old workspace unless it is fully closed.",
-                '  choice /C YN /M "Close existing Reasonix and start the CTF profile now"',
-                "  if errorlevel 2 exit /b 0",
-                "  taskkill /IM reasonix-desktop.exe /F >nul 2>nul",
-                "  timeout /t 1 /nobreak >nul",
-                ")",
-                "",
-                f'if exist "{reasonix_desktop}" (',
-                f'  start "" /D "%~dp0" "{reasonix_desktop}"',
-                ") else (",
-                "  echo reasonix-desktop.exe not found, falling back to Reasonix CLI...",
-                '  pushd "%~dp0"',
-                "  reasonix.exe chat",
-                "  popd",
-                ")",
-                "",
-            ])
-            with open(self.profile_launcher_path, "w", encoding="ascii") as f:
-                f.write(launcher)
-
-            readme = f"""# Reasonix CTF Workspace
-
-This workspace is managed by reasonix-session-patcher.
-
-## Start
-
-Double-click:
-
-`{self.profile_launcher_path}`
-
-Reasonix will load this workspace's `reasonix.toml`, which points
-`[agent].system_prompt_file` to `prompts/{self.DEFAULT_PROMPT_FILE}`.
-"""
-            with open(self.profile_readme_path, "w", encoding="utf-8") as f:
-                f.write(readme)
+                f.write("\n".join(lines).strip() + "\n")
 
             return True, "\n".join([
-                f"✓ 已创建 Reasonix CTF 工作区: {self.workspace_dir}",
-                f"✓ 已写入 Profile 配置: {self.profile_config_path}",
+                f"✓ 已启用当前 Reasonix 工作区 Profile 模式: {self.workspace_dir}",
+                f"✓ 已写入工作区配置: {self.profile_config_path}",
                 f"✓ 已写入提示词: {self.profile_prompt_path}",
-                f"✓ 已创建启动脚本: {self.profile_launcher_path}",
-                "使用方式：双击 start_reasonix_ctf.bat 从该工作区启动 Reasonix Desktop",
+                "无需独立启动脚本；在该工作区中新建对话即可生效，若已有窗口未刷新请重启 Reasonix Desktop。",
             ])
         except Exception as e:
             return False, f"Reasonix Profile 模式安装失败: {e}"
@@ -834,11 +800,22 @@ Reasonix will load this workspace's `reasonix.toml`, which points
     def uninstall(self) -> tuple[bool, str]:
         try:
             removed = []
-            for path in [self.profile_config_path, self.profile_prompt_path, self.profile_launcher_path, self.profile_readme_path]:
+            if os.path.exists(self.profile_config_path):
+                lines = open(self.profile_config_path, "r", encoding="utf-8").read().splitlines()
+                lines, found = self._remove_managed_reasonix_agent_block(lines)
+                if found:
+                    self._backup_config(self.profile_config_path)
+                    with open(self.profile_config_path, "w", encoding="utf-8") as f:
+                        f.write("\n".join(lines).strip() + "\n")
+                    removed.append(self.profile_config_path)
+
+            for path in [self.profile_prompt_path]:
                 if os.path.exists(path):
                     os.remove(path)
                     removed.append(path)
-            for path in [self.profile_prompts_dir, self.workspace_dir]:
+
+            reasonix_hidden_dir = os.path.join(self.workspace_dir, ".reasonix")
+            for path in [self.profile_prompts_dir, reasonix_hidden_dir]:
                 if os.path.isdir(path) and not os.listdir(path):
                     os.rmdir(path)
 
@@ -957,10 +934,16 @@ Reasonix will load this workspace's `reasonix.toml`, which points
                 return "system_prompt"
         return None
 
-    def _insert_reasonix_agent_block(self, lines: list[str], prompt_path: str) -> list[str]:
-        prompt_path_toml = self._toml_path(prompt_path)
+    def _insert_reasonix_agent_block(
+        self,
+        lines: list[str],
+        prompt_path: str,
+        label: str = "global",
+        absolute: bool = True,
+    ) -> list[str]:
+        prompt_path_toml = self._toml_path(prompt_path) if absolute else prompt_path.replace("\\", "/")
         block = [
-            f"{REASONIX_MARKER} Reasonix CTF global mode managed by reasonix-session-patcher",
+            f"{REASONIX_MARKER} Reasonix CTF {label} mode managed by reasonix-session-patcher",
             f'system_prompt_file = "{prompt_path_toml}"',
         ]
 

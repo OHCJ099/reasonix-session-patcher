@@ -8,7 +8,7 @@
 - 支持 Reasonix Desktop JSONL：顶层 `role/content`，可清理同一行内的 `reasoning_content`
 - 读取旁路元数据：`*.jsonl.meta`，用于显示工作区路径与完整会话 ID
 - Web UI 默认优先显示 `Reasonix Desktop` 标签页
-- CTF/Profile 模式已迁移到 Reasonix：创建 `%APPDATA%\reasonix-ctf-workspace\reasonix.toml`，通过 `[agent].system_prompt_file` 注入
+- CTF/Profile 模式已迁移到 Reasonix：自动识别最近 Reasonix 项目工作区，直接写入该项目下的 `reasonix.toml`，通过 `[agent].system_prompt_file` 注入
 - CTF/全局模式已迁移到 Reasonix：写入 `%APPDATA%\reasonix\config.toml` 的 `[agent].system_prompt_file`，不会写 `.codex`
 - 独立配置：`%APPDATA%\reasonix-session-patcher\config.json`，不复用旧版 `%APPDATA%\reasonix\sessions\manager.html/server.py`
 - 保留上游 Codex / Claude Code / OpenCode 兼容能力，但 UI 主路径默认面向 Reasonix
@@ -39,7 +39,7 @@ cd /d G:\codex-session-patcher-reasonix
 
 ## CTF/Profile 与全局模式
 
-- Profile：Web UI 点击「启用」后，双击 `%APPDATA%\reasonix-ctf-workspace\start_reasonix_ctf.bat` 启动。
+- Profile：先在 Reasonix Desktop 打开/新建目标项目会话；Web UI 点击「启用」后，会直接写入该项目工作区的 `reasonix.toml`，无需独立启动脚本。然后在同一项目中新建对话即可生效；如 Reasonix 未刷新配置，重启 Reasonix Desktop。
 - 全局：Web UI 点击「启用全局」后，所有新 Reasonix 会话都会加载 `%APPDATA%\reasonix\prompts\ctf_optimized.md`。
 
 ## 说明
