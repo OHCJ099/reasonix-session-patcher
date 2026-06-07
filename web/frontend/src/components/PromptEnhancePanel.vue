@@ -5,15 +5,15 @@
       <n-card :title="$t('enhance.ctfMode')" size="small">
         <n-tabs type="line" animated>
 
-          <!-- ── Codex ── -->
-          <n-tab-pane name="codex" display-directive="show">
+          <!-- ── Reasonix Desktop ── -->
+          <n-tab-pane name="reasonix" display-directive="show">
             <template #tab>
               <span class="tab-label">
                 <span class="status-dot" :class="{
-                  'dot-success': ctfStore.status?.installed || ctfStore.status?.global_installed,
-                  'dot-warning': !ctfStore.status?.installed && ctfStore.status?.global_installed,
+                  'dot-success': ctfStore.status?.reasonix_profile_installed || ctfStore.status?.reasonix_global_installed,
+                  'dot-warning': !ctfStore.status?.reasonix_profile_installed && ctfStore.status?.reasonix_global_installed,
                 }"></span>
-                Codex
+                Reasonix Desktop
               </span>
             </template>
 
@@ -24,33 +24,30 @@
                   <n-text strong>{{ $t('enhance.editPromptShared') }}</n-text>
                 </div>
                 <n-text depth="3" style="font-size: 13px; line-height: 1.6">{{ $t('enhance.ctfTemplateDesc') }}</n-text>
-                <n-spin :show="ctfStore.prompts.codex.loading" style="margin-top: 8px">
+                <n-spin :show="ctfStore.prompts.reasonix.loading" style="margin-top: 8px">
                   <div class="template-row">
-                    <n-select v-model:value="codexSelectedTemplate" size="small" :placeholder="ctfStore.templates.codex.length === 0 ? $t('enhance.noTemplates') : $t('enhance.selectTemplate')" :options="templateOptions('codex')" :disabled="ctfStore.templates.codex.length === 0" :render-label="(option) => renderTemplateLabel(option, 'codex')" clearable style="flex: 1" @update:value="(v) => { if (v) applyTemplate('codex', v) }" />
-                    <n-button size="small" :disabled="ctfStore.templates.codex.length >= MAX_TEMPLATES" @click="openSaveTemplate('codex')">+ {{ $t('enhance.saveAsTemplate') }}</n-button>
+                    <n-select v-model:value="reasonixSelectedTemplate" size="small" :placeholder="ctfStore.templates.reasonix.length === 0 ? $t('enhance.noTemplates') : $t('enhance.selectTemplate')" :options="templateOptions('reasonix')" :disabled="ctfStore.templates.reasonix.length === 0" :render-label="(option) => renderTemplateLabel(option, 'reasonix')" clearable style="flex: 1" @update:value="(v) => { if (v) applyTemplate('reasonix', v) }" />
+                    <n-button size="small" :disabled="ctfStore.templates.reasonix.length >= MAX_TEMPLATES" @click="openSaveTemplate('reasonix')">+ {{ $t('enhance.saveAsTemplate') }}</n-button>
                   </div>
-                  <n-input v-model:value="codexPromptText" type="textarea" :rows="8" style="font-family: monospace; font-size: 12px" />
+                  <n-input v-model:value="reasonixPromptText" type="textarea" :rows="8" style="font-family: monospace; font-size: 12px" />
                   <n-space style="margin-top: 8px" align="center">
-                    <n-button size="small" :disabled="ctfStore.prompts.codex.is_default" @click="handleResetPrompt('codex')">{{ $t('enhance.restoreDefault') }}</n-button>
-                    <n-button size="small" type="primary" @click="handleSavePrompt('codex', codexPromptText)">{{ $t('common.save') }}</n-button>
+                    <n-button size="small" :disabled="ctfStore.prompts.reasonix.is_default" @click="handleResetPrompt('reasonix')">{{ $t('enhance.restoreDefault') }}</n-button>
+                    <n-button size="small" type="primary" @click="handleSavePrompt('reasonix', reasonixPromptText)">{{ $t('common.save') }}</n-button>
                   </n-space>
                 </n-spin>
               </div>
 
               <n-divider style="margin: 4px 0" />
 
-              <!-- Codex 注入方式 -->
+              <!-- Reasonix 注入方式 -->
               <div class="mode-section">
                 <div class="mode-header">
-                  <n-text strong>{{ $t('enhance.codexInjectionMode') }}</n-text>
+                  <n-text strong>{{ $t('enhance.reasonixInjectionMode') }}</n-text>
                 </div>
-                <n-radio-group v-model:value="codexInjectionMode" size="small" class="injection-mode-radio">
-                  <n-space vertical size="small">
-                    <n-radio value="append">{{ $t('enhance.codexInjectionAppend') }}</n-radio>
-                    <n-radio value="replace">{{ $t('enhance.codexInjectionReplace') }}</n-radio>
-                  </n-space>
-                </n-radio-group>
-                <n-alert v-if="codexInjectionMode === 'replace'" type="warning" :bordered="false">{{ $t('enhance.codexInjectionReplaceWarning') }}</n-alert>
+                <n-space vertical size="small" style="margin-top: 4px">
+                  <n-tag size="small" type="info" :bordered="false">system_prompt_file</n-tag>
+                  <n-text depth="3" style="font-size: 13px">{{ $t('enhance.reasonixInjectionDesc') }}</n-text>
+                </n-space>
               </div>
 
               <n-divider style="margin: 4px 0" />
@@ -59,17 +56,17 @@
               <div class="mode-section">
                 <div class="mode-header">
                   <n-text strong>Profile {{ $t('enhance.ctfMode') }}</n-text>
-                  <n-tag :type="ctfStore.status?.installed ? 'success' : 'default'" size="small" :bordered="false">
-                    {{ ctfStore.status?.installed ? $t('common.enabled') : $t('common.disabled') }}
+                  <n-tag :type="ctfStore.status?.reasonix_profile_installed ? 'success' : 'default'" size="small" :bordered="false">
+                    {{ ctfStore.status?.reasonix_profile_installed ? $t('common.enabled') : $t('common.disabled') }}
                   </n-tag>
                 </div>
-                <n-text depth="3" style="font-size: 13px; line-height: 1.6">{{ $t('enhance.ctfProfileDesc') }}</n-text>
+                <n-text depth="3" style="font-size: 13px; line-height: 1.6">{{ $t('enhance.reasonixProfileDesc') }}</n-text>
                 <div style="margin-top: 8px">
-                  <n-button v-if="!ctfStore.status?.installed" type="primary" size="small" :loading="ctfStore.installLoading" @click="handleInstall">{{ $t('enhance.enable') }}</n-button>
-                  <n-button v-else type="warning" size="small" :loading="ctfStore.installLoading" @click="handleUninstall">{{ $t('enhance.disable') }}</n-button>
+                  <n-button v-if="!ctfStore.status?.reasonix_profile_installed" type="primary" size="small" :loading="ctfStore.reasonixInstallLoading" @click="handleReasonixInstall">{{ $t('enhance.enable') }}</n-button>
+                  <n-button v-else type="warning" size="small" :loading="ctfStore.reasonixInstallLoading" @click="handleReasonixUninstall">{{ $t('enhance.disable') }}</n-button>
                 </div>
-                <p v-if="ctfStore.status?.installed" class="command-inline-hint">
-                  {{ $t('enhance.ctfProfileCmdPre') }}<code>codex -p ctf</code>{{ $t('enhance.ctfProfileCmdPost') }}
+                <p v-if="ctfStore.status?.reasonix_profile_installed" class="command-inline-hint">
+                  {{ $t('enhance.activationCommand') }}: <code>{{ ctfStore.status?.reasonix_profile_launcher_path }}</code>
                 </p>
               </div>
 
@@ -79,16 +76,16 @@
               <div class="mode-section">
                 <div class="mode-header">
                   <n-text strong>{{ $t('enhance.ctfGlobalMode') }}</n-text>
-                  <n-tag :type="ctfStore.status?.global_installed ? 'warning' : 'default'" size="small" :bordered="false">
-                    {{ ctfStore.status?.global_installed ? $t('common.enabled') : $t('common.disabled') }}
+                  <n-tag :type="ctfStore.status?.reasonix_global_installed ? 'warning' : 'default'" size="small" :bordered="false">
+                    {{ ctfStore.status?.reasonix_global_installed ? $t('common.enabled') : $t('common.disabled') }}
                   </n-tag>
                 </div>
-                <n-text depth="3" style="font-size: 13px; line-height: 1.6">{{ $t('enhance.ctfGlobalDesc') }}</n-text>
+                <n-text depth="3" style="font-size: 13px; line-height: 1.6">{{ $t('enhance.reasonixGlobalDesc') }}</n-text>
                 <div style="margin-top: 8px">
-                  <n-button v-if="!ctfStore.status?.global_installed" type="primary" size="small" :loading="ctfStore.globalInstallLoading" @click="handleInstallGlobal">{{ $t('enhance.enableGlobal') }}</n-button>
-                  <n-button v-else type="warning" size="small" :loading="ctfStore.globalInstallLoading" @click="handleUninstallGlobal">{{ $t('enhance.disableGlobal') }}</n-button>
+                  <n-button v-if="!ctfStore.status?.reasonix_global_installed" type="primary" size="small" :loading="ctfStore.reasonixGlobalInstallLoading" @click="handleReasonixInstallGlobal">{{ $t('enhance.enableGlobal') }}</n-button>
+                  <n-button v-else type="warning" size="small" :loading="ctfStore.reasonixGlobalInstallLoading" @click="handleReasonixUninstallGlobal">{{ $t('enhance.disableGlobal') }}</n-button>
                 </div>
-                <n-alert v-if="ctfStore.status?.global_installed" type="warning" :bordered="false" style="margin-top: 8px">{{ $t('enhance.ctfGlobalWarning') }}</n-alert>
+                <n-alert v-if="ctfStore.status?.reasonix_global_installed" type="warning" :bordered="false" style="margin-top: 8px">{{ $t('enhance.reasonixGlobalWarning') }}</n-alert>
               </div>
             </n-space>
           </n-tab-pane>
@@ -251,10 +248,10 @@
       <!-- 推荐工作流 -->
       <n-card :title="$t('help.workflow')" size="small">
         <n-tabs type="segment" size="small">
-          <n-tab-pane name="codex" tab="Codex">
+          <n-tab-pane name="reasonix" tab="Reasonix">
             <n-steps vertical :current="0" size="small" style="margin-top: 12px">
               <n-step :title="$t('help.workflowCtfSteps[0]')" :description="$t('enhance.ctfProfileDesc')" />
-              <n-step :title="$t('help.workflowCtfSteps[1]')" description="Profile: codex -p ctf; Global: codex" />
+              <n-step :title="$t('help.workflowCtfSteps[1]')" :description="$t('enhance.reasonixWorkflowStart')" />
               <n-step :title="$t('help.workflowCtfSteps[2]')" :description="$t('enhance.promptRewriteDesc')" />
               <n-step :title="$t('help.workflowCtfSteps[3]')" :description="$t('help.workflowCtfSteps[4]')" />
             </n-steps>
@@ -315,8 +312,8 @@ const settingsStore = useSettingsStore()
 
 // 任意 CTF 模式已启用时才显示改写功能
 const anyCtfEnabled = computed(() =>
-  ctfStore.status?.installed ||
-  ctfStore.status?.global_installed ||
+  ctfStore.status?.reasonix_profile_installed ||
+  ctfStore.status?.reasonix_global_installed ||
   ctfStore.status?.claude_installed ||
   ctfStore.status?.opencode_installed
 )
@@ -324,9 +321,8 @@ const anyCtfEnabled = computed(() =>
 const MAX_TEMPLATES = 5
 
 const rewriteInput = ref('')
-const codexPromptText = ref('')
-const codexSelectedTemplate = ref(null)
-const codexInjectionMode = ref('append')
+const reasonixPromptText = ref('')
+const reasonixSelectedTemplate = ref(null)
 const claudePromptText = ref('')
 const claudeSelectedTemplate = ref(null)
 const opencodePromptText = ref('')
@@ -337,24 +333,19 @@ const saveTemplateModal = ref({ show: false, tool: '', name: '' })
 onMounted(async () => {
   await Promise.all([
     ctfStore.fetchStatus(),
-    ctfStore.fetchPrompt('codex'),
+    ctfStore.fetchPrompt('reasonix'),
     ctfStore.fetchPrompt('claude_code'),
     ctfStore.fetchPrompt('opencode'),
-    ctfStore.fetchTemplates('codex'),
+    ctfStore.fetchTemplates('reasonix'),
     ctfStore.fetchTemplates('claude_code'),
     ctfStore.fetchTemplates('opencode'),
   ])
-  codexPromptText.value = ctfStore.prompts.codex.prompt
+  reasonixPromptText.value = ctfStore.prompts.reasonix.prompt
   claudePromptText.value = ctfStore.prompts.claude_code.prompt
   opencodePromptText.value = ctfStore.prompts.opencode.prompt
-  if (ctfStore.status?.installed && ['append', 'replace'].includes(ctfStore.status?.injection_mode)) {
-    codexInjectionMode.value = ctfStore.status.injection_mode
-  } else if (ctfStore.status?.global_installed && ['append', 'replace'].includes(ctfStore.status?.global_injection_mode)) {
-    codexInjectionMode.value = ctfStore.status.global_injection_mode
-  }
 
   // 用 is_default 判断是否匹配默认模板，选中对应模板名
-  for (const tool of ['codex', 'claude_code', 'opencode']) {
+  for (const tool of ['reasonix', 'claude_code', 'opencode']) {
     if (ctfStore.prompts[tool].is_default) {
       const defaultTpl = ctfStore.templates[tool].find(t => t.default === true)
       if (defaultTpl) getSelectedTemplateRef(tool).value = defaultTpl.name
@@ -449,13 +440,13 @@ function confirmDeleteTemplate(tool, name) {
 // ─── 提示词管理 ──────────────────────────────────────────
 
 function getPromptTextRef(tool) {
-  if (tool === 'codex') return codexPromptText
+  if (tool === 'reasonix') return reasonixPromptText
   if (tool === 'claude_code') return claudePromptText
   return opencodePromptText
 }
 
 function getSelectedTemplateRef(tool) {
-  if (tool === 'codex') return codexSelectedTemplate
+  if (tool === 'reasonix') return reasonixSelectedTemplate
   if (tool === 'claude_code') return claudeSelectedTemplate
   return opencodeSelectedTemplate
 }
@@ -479,37 +470,37 @@ async function handleResetPrompt(tool) {
 
 // ─── CTF 安装/卸载 ──────────────────────────────────────
 
-async function handleInstall() {
-  const result = await ctfStore.install(codexInjectionMode.value)
+async function handleReasonixInstall() {
+  const result = await ctfStore.installReasonix()
   message[result.success ? 'success' : 'error'](result.message)
 }
 
-async function handleUninstall() {
+async function handleReasonixUninstall() {
   dialog.warning({
     title: t('common.confirm'),
-    content: t('enhance.confirmDisableCtf'),
+    content: t('enhance.confirmDisableReasonix'),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
-      const result = await ctfStore.uninstall()
+      const result = await ctfStore.uninstallReasonix()
       message[result.success ? 'success' : 'error'](result.message)
     }
   })
 }
 
-async function handleInstallGlobal() {
-  const result = await ctfStore.installGlobal(codexInjectionMode.value)
+async function handleReasonixInstallGlobal() {
+  const result = await ctfStore.installReasonixGlobal()
   message[result.success ? 'success' : 'error'](result.message)
 }
 
-async function handleUninstallGlobal() {
+async function handleReasonixUninstallGlobal() {
   dialog.warning({
     title: t('common.confirm'),
-    content: t('enhance.confirmDisableGlobal'),
+    content: t('enhance.confirmDisableReasonixGlobal'),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
-      const result = await ctfStore.uninstallGlobal()
+      const result = await ctfStore.uninstallReasonixGlobal()
       message[result.success ? 'success' : 'error'](result.message)
     }
   })

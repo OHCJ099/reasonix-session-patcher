@@ -33,6 +33,23 @@ DEFAULT_OPENCODE_CTF_WORKSPACE = expand_user_path("~/.opencode-ctf-workspace")
 
 GLOBAL_MARKER = '# __csp_ctf_global__'
 DEFAULT_CODEX_PROMPT_FILE = "ctf_optimized.md"
+REASONIX_MARKER = '# __rsp_ctf__'
+
+
+def default_reasonix_dir() -> str:
+    return os.path.join(os.environ.get("APPDATA", expand_user_path("~")), "reasonix")
+
+
+def default_reasonix_global_config() -> str:
+    return os.path.join(default_reasonix_dir(), "config.toml")
+
+
+def default_reasonix_prompt_path() -> str:
+    return os.path.join(default_reasonix_dir(), "prompts", DEFAULT_CODEX_PROMPT_FILE)
+
+
+def default_reasonix_profile_workspace() -> str:
+    return os.path.join(os.environ.get("APPDATA", expand_user_path("~")), "reasonix-ctf-workspace")
 
 
 @dataclass
@@ -60,6 +77,19 @@ class CTFStatus:
     opencode_prompt_exists: bool = False
     opencode_workspace_path: Optional[str] = None
     opencode_prompt_path: Optional[str] = None
+    # Reasonix Desktop
+    reasonix_profile_installed: bool = False
+    reasonix_profile_workspace_exists: bool = False
+    reasonix_profile_prompt_exists: bool = False
+    reasonix_profile_workspace_path: Optional[str] = None
+    reasonix_profile_config_path: Optional[str] = None
+    reasonix_profile_prompt_path: Optional[str] = None
+    reasonix_profile_launcher_path: Optional[str] = None
+    reasonix_global_installed: bool = False
+    reasonix_global_config_exists: bool = False
+    reasonix_global_config_path: Optional[str] = None
+    reasonix_global_prompt_path: Optional[str] = None
+    reasonix_global_injection_mode: str = "none"
 
 
 def _top_level_lines(content: str) -> List[str]:
@@ -203,5 +233,39 @@ def check_ctf_status() -> CTFStatus:
             pass
 
     status.opencode_installed = status.opencode_workspace_exists and status.opencode_prompt_exists
+
+    # ── Reasonix Desktop 检查 ──
+    reasonix_workspace = default_reasonix_profile_workspace()
+    reasonix_profile_config = os.path.join(reasonix_workspace, "reasonix.toml")
+    reasonix_profile_prompt = os.path.join(reasonix_workspace, "prompts", DEFAULT_CODEX_PROMPT_FILE)
+    reasonix_launcher = os.path.join(reasonix_workspace, "start_reasonix_ctf.bat")
+    reasonix_global_config = default_reasonix_global_config()
+    reasonix_global_prompt = default_reasonix_prompt_path()
+
+    status.reasonix_profile_workspace_path = reasonix_workspace
+    status.reasonix_profile_config_path = reasonix_profile_config
+    status.reasonix_profile_prompt_path = reasonix_profile_prompt
+    status.reasonix_profile_launcher_path = reasonix_launcher
+    status.reasonix_profile_workspace_exists = os.path.isdir(reasonix_workspace)
+    status.reasonix_profile_prompt_exists = os.path.exists(reasonix_profile_prompt)
+    if os.path.exists(reasonix_profile_config):
+        try:
+            with open(reasonix_profile_config, 'r', encoding='utf-8') as f:
+                status.reasonix_profile_installed = REASONIX_MARKER in f.read()
+        except Exception:
+            pass
+
+    status.reasonix_global_config_path = reasonix_global_config
+    status.reasonix_global_prompt_path = reasonix_global_prompt
+    status.reasonix_global_config_exists = os.path.exists(reasonix_global_config)
+    if os.path.exists(reasonix_global_config):
+        try:
+            with open(reasonix_global_config, 'r', encoding='utf-8') as f:
+                content = f.read()
+            if REASONIX_MARKER in content:
+                status.reasonix_global_installed = True
+                status.reasonix_global_injection_mode = "system_prompt_file"
+        except Exception:
+            pass
 
     return status

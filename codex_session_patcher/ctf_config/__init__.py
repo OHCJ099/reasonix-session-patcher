@@ -3,16 +3,18 @@
 CTF 配置模块 - 管理 Codex CLI / Claude Code 的安全测试配置
 """
 
-from .installer import CTFConfigInstaller, ClaudeCodeCTFInstaller, OpenCodeCTFInstaller
+from .installer import CTFConfigInstaller, ReasonixCTFInstaller, ClaudeCodeCTFInstaller, OpenCodeCTFInstaller
 from .status import check_ctf_status, CTFStatus
 from .templates import (
     CTF_CONFIG_TEMPLATE, SECURITY_MODE_PROMPT,
     CLAUDE_CODE_SECURITY_MODE_PROMPT, CLAUDE_CODE_CTF_README,
     OPENCODE_SECURITY_MODE_PROMPT, OPENCODE_CTF_CONFIG, OPENCODE_CTF_README,
+    REASONIX_CTF_OPTIMIZED,
 )
 
 __all__ = [
     'CTFConfigInstaller',
+    'ReasonixCTFInstaller',
     'ClaudeCodeCTFInstaller',
     'OpenCodeCTFInstaller',
     'CTFStatus',
@@ -24,4 +26,5 @@ __all__ = [
     'OPENCODE_SECURITY_MODE_PROMPT',
     'OPENCODE_CTF_CONFIG',
     'OPENCODE_CTF_README',
+    'REASONIX_CTF_OPTIMIZED',
 ]

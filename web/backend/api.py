@@ -39,7 +39,7 @@ from codex_session_patcher.core import (
 )
 from codex_session_patcher.core.patcher import clean_session_jsonl, save_session_jsonl
 from codex_session_patcher.core.sqlite_adapter import OpenCodeDBAdapter, DEFAULT_OPENCODE_DB
-from codex_session_patcher.ctf_config.status import expand_user_path
+from codex_session_patcher.ctf_config.status import expand_user_path, default_reasonix_prompt_path
 from codex_session_patcher import __version__
 
 logger = logging.getLogger(__name__)
@@ -1100,6 +1100,18 @@ async def _build_ctf_status_response() -> CTFStatusResponse:
         opencode_prompt_exists=status.opencode_prompt_exists,
         opencode_workspace_path=status.opencode_workspace_path,
         opencode_prompt_path=status.opencode_prompt_path,
+        reasonix_profile_installed=status.reasonix_profile_installed,
+        reasonix_profile_workspace_exists=status.reasonix_profile_workspace_exists,
+        reasonix_profile_prompt_exists=status.reasonix_profile_prompt_exists,
+        reasonix_profile_workspace_path=status.reasonix_profile_workspace_path,
+        reasonix_profile_config_path=status.reasonix_profile_config_path,
+        reasonix_profile_prompt_path=status.reasonix_profile_prompt_path,
+        reasonix_profile_launcher_path=status.reasonix_profile_launcher_path,
+        reasonix_global_installed=status.reasonix_global_installed,
+        reasonix_global_config_exists=status.reasonix_global_config_exists,
+        reasonix_global_config_path=status.reasonix_global_config_path,
+        reasonix_global_prompt_path=status.reasonix_global_prompt_path,
+        reasonix_global_injection_mode=status.reasonix_global_injection_mode,
     )
 
 
@@ -1107,6 +1119,96 @@ async def _build_ctf_status_response() -> CTFStatusResponse:
 async def get_ctf_status():
     """获取 CTF 配置状态（Codex + Claude Code）"""
     return await _build_ctf_status_response()
+
+
+@router.post("/ctf/reasonix/install", response_model=CTFInstallResponse)
+async def install_reasonix_ctf_config(body: Optional[CTFInstallRequest] = None):
+    """安装 Reasonix Desktop Profile CTF 配置"""
+    from codex_session_patcher.ctf_config import ReasonixCTFInstaller
+    installer = ReasonixCTFInstaller()
+    settings_data = _load_raw_config()
+    custom_prompt = settings_data.get('ctf_prompts', {}).get('reasonix', {}).get('prompt')
+    success, message = installer.install(custom_prompt=custom_prompt)
+
+    await manager.broadcast(WSMessage(
+        type="log",
+        data={"level": "success" if success else "error", "message": message}
+    ))
+
+    status = await _build_ctf_status_response()
+    activation = status.reasonix_profile_launcher_path or ""
+    return CTFInstallResponse(
+        success=success,
+        message=message,
+        profile_command=activation,
+        activation_command=activation,
+        status=status,
+    )
+
+
+@router.post("/ctf/reasonix/uninstall", response_model=CTFInstallResponse)
+async def uninstall_reasonix_ctf_config():
+    """卸载 Reasonix Desktop Profile CTF 配置"""
+    from codex_session_patcher.ctf_config import ReasonixCTFInstaller
+    installer = ReasonixCTFInstaller()
+    success, message = installer.uninstall()
+
+    await manager.broadcast(WSMessage(
+        type="log",
+        data={"level": "success" if success else "error", "message": message}
+    ))
+
+    return CTFInstallResponse(
+        success=success,
+        message=message,
+        profile_command="",
+        activation_command="",
+        status=await _build_ctf_status_response(),
+    )
+
+
+@router.post("/ctf/reasonix/global/install", response_model=CTFInstallResponse)
+async def install_reasonix_global_ctf_config(body: Optional[CTFInstallRequest] = None):
+    """安装 Reasonix Desktop 全局 CTF 配置"""
+    from codex_session_patcher.ctf_config import ReasonixCTFInstaller
+    installer = ReasonixCTFInstaller()
+    settings_data = _load_raw_config()
+    custom_prompt = settings_data.get('ctf_prompts', {}).get('reasonix', {}).get('prompt')
+    success, message = installer.install_global(custom_prompt=custom_prompt)
+
+    await manager.broadcast(WSMessage(
+        type="log",
+        data={"level": "success" if success else "error", "message": message}
+    ))
+
+    return CTFInstallResponse(
+        success=success,
+        message=message,
+        profile_command="",
+        activation_command="直接新建 Reasonix Desktop 会话",
+        status=await _build_ctf_status_response(),
+    )
+
+
+@router.post("/ctf/reasonix/global/uninstall", response_model=CTFInstallResponse)
+async def uninstall_reasonix_global_ctf_config():
+    """卸载 Reasonix Desktop 全局 CTF 配置"""
+    from codex_session_patcher.ctf_config import ReasonixCTFInstaller
+    installer = ReasonixCTFInstaller()
+    success, message = installer.uninstall_global()
+
+    await manager.broadcast(WSMessage(
+        type="log",
+        data={"level": "success" if success else "error", "message": message}
+    ))
+
+    return CTFInstallResponse(
+        success=success,
+        message=message,
+        profile_command="",
+        activation_command="",
+        status=await _build_ctf_status_response(),
+    )
 
 
 @router.post("/ctf/install", response_model=CTFInstallResponse)
@@ -1303,6 +1405,7 @@ def _save_raw_config(data: dict):
 
 
 _CTF_PROMPT_PATHS = {
+    'reasonix': default_reasonix_prompt_path(),
     'codex': expand_user_path("~/.codex/prompts/ctf_optimized.md"),
     'claude_code': expand_user_path("~/.claude-ctf-workspace/.claude/CLAUDE.md"),
     'opencode': expand_user_path("~/.opencode-ctf-workspace/AGENTS.md"),
@@ -1311,6 +1414,14 @@ _CTF_PROMPT_PATHS = {
 
 def _get_ctf_prompt_path(tool: str) -> str | None:
     """获取工具当前实际生效的 CTF 提示词路径"""
+    if tool == 'reasonix':
+        from codex_session_patcher.ctf_config import check_ctf_status
+        status = check_ctf_status()
+        if status.reasonix_profile_installed and status.reasonix_profile_prompt_path:
+            return status.reasonix_profile_prompt_path
+        if status.reasonix_global_installed and status.reasonix_global_prompt_path:
+            return status.reasonix_global_prompt_path
+        return _CTF_PROMPT_PATHS['reasonix']
     if tool != 'codex':
         return _CTF_PROMPT_PATHS.get(tool)
 
@@ -1428,6 +1539,23 @@ def _codex_ctf_config_active() -> bool:
     return status.profile_available or status.global_installed
 
 
+def _reasonix_ctf_config_active() -> bool:
+    from codex_session_patcher.ctf_config import check_ctf_status
+    status = check_ctf_status()
+    return status.reasonix_profile_installed or status.reasonix_global_installed
+
+
+def _sync_reasonix_prompt_config(prompt: str):
+    """同步已启用 Reasonix Profile/全局模式中的提示词文件。"""
+    from codex_session_patcher.ctf_config import ReasonixCTFInstaller, check_ctf_status
+    installer = ReasonixCTFInstaller()
+    status = check_ctf_status()
+    if status.reasonix_profile_installed:
+        installer.update_profile_prompt(prompt)
+    if status.reasonix_global_installed:
+        installer.update_global_prompt(prompt)
+
+
 def _read_ctf_prompt_for_tool(tool: str) -> str | None:
     """读取工具当前实际安装的 CTF 提示词，未安装时从配置中读取自定义内容，都没有则返回 None"""
     if tool == 'codex':
@@ -1526,6 +1654,9 @@ async def save_ctf_prompt(tool: str, body: dict):
             prompt_path = _get_codex_prompt_path_for_file(matched_file)
         _sync_codex_prompt_config(prompt, matched_file)
         should_write_installed = bool(prompt_path)
+    elif tool == 'reasonix' and _reasonix_ctf_config_active():
+        _sync_reasonix_prompt_config(prompt)
+        should_write_installed = bool(prompt_path)
 
     # 已安装：写入对应文件
     if should_write_installed:
@@ -1562,6 +1693,9 @@ async def reset_ctf_prompt(tool: str):
         from codex_session_patcher.ctf_config.installer import CTFConfigInstaller
         prompt_path = _get_codex_prompt_path_for_file(CTFConfigInstaller.DEFAULT_PROMPT_FILE)
         _sync_codex_prompt_config(default_prompt, CTFConfigInstaller.DEFAULT_PROMPT_FILE)
+        should_write_installed = True
+    elif tool == 'reasonix' and _reasonix_ctf_config_active():
+        _sync_reasonix_prompt_config(default_prompt)
         should_write_installed = True
 
     # 已安装：更新文件为默认

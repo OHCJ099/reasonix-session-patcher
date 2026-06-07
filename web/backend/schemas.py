@@ -217,6 +217,19 @@ class CTFStatusResponse(BaseModel):
     opencode_prompt_exists: bool = False
     opencode_workspace_path: Optional[str] = None
     opencode_prompt_path: Optional[str] = None
+    # Reasonix Desktop
+    reasonix_profile_installed: bool = False
+    reasonix_profile_workspace_exists: bool = False
+    reasonix_profile_prompt_exists: bool = False
+    reasonix_profile_workspace_path: Optional[str] = None
+    reasonix_profile_config_path: Optional[str] = None
+    reasonix_profile_prompt_path: Optional[str] = None
+    reasonix_profile_launcher_path: Optional[str] = None
+    reasonix_global_installed: bool = False
+    reasonix_global_config_exists: bool = False
+    reasonix_global_config_path: Optional[str] = None
+    reasonix_global_prompt_path: Optional[str] = None
+    reasonix_global_injection_mode: str = "none"
 
 
 class CTFInstallResponse(BaseModel):

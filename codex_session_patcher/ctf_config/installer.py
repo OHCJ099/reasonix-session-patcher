@@ -14,12 +14,14 @@ from .templates import (
     CTF_CONFIG_TEMPLATE, SECURITY_MODE_PROMPT,
     CLAUDE_CODE_SECURITY_MODE_PROMPT, CLAUDE_CODE_CTF_README,
     OPENCODE_SECURITY_MODE_PROMPT, OPENCODE_CTF_CONFIG, OPENCODE_CTF_README,
+    REASONIX_CTF_OPTIMIZED,
     BUILTIN_TEMPLATES,
 )
 from .status import (
-    check_ctf_status, CTFStatus, GLOBAL_MARKER, CTF_MARKER,
+    check_ctf_status, CTFStatus, GLOBAL_MARKER, CTF_MARKER, REASONIX_MARKER,
     DEFAULT_CLAUDE_CTF_WORKSPACE, DEFAULT_OPENCODE_CTF_WORKSPACE,
-    expand_user_path,
+    expand_user_path, default_reasonix_dir, default_reasonix_global_config,
+    default_reasonix_prompt_path, default_reasonix_profile_workspace,
 )
 
 
@@ -698,6 +700,278 @@ class CTFConfigInstaller:
 
     def get_status(self) -> CTFStatus:
         """获取当前配置状态"""
+        return check_ctf_status()
+
+
+class ReasonixCTFInstaller:
+    """Reasonix Desktop CTF 配置安装器。
+
+    - Profile 模式：创建专用工作区 `%APPDATA%/reasonix-ctf-workspace`，
+      通过该目录下的 `reasonix.toml` 注入 `[agent].system_prompt_file`。
+    - 全局模式：修改 `%APPDATA%/reasonix/config.toml` 的 `[agent]` 段，
+      注入 `system_prompt_file`，影响所有新 Reasonix 会话。
+    """
+
+    DEFAULT_PROMPT_FILE = "ctf_optimized.md"
+
+    def __init__(self):
+        self.reasonix_dir = default_reasonix_dir()
+        self.global_config_path = default_reasonix_global_config()
+        self.global_prompts_dir = os.path.join(self.reasonix_dir, "prompts")
+        self.global_prompt_path = default_reasonix_prompt_path()
+        self.workspace_dir = default_reasonix_profile_workspace()
+        self.profile_config_path = os.path.join(self.workspace_dir, "reasonix.toml")
+        self.profile_prompts_dir = os.path.join(self.workspace_dir, "prompts")
+        self.profile_prompt_path = os.path.join(self.profile_prompts_dir, self.DEFAULT_PROMPT_FILE)
+        self.profile_launcher_path = os.path.join(self.workspace_dir, "start_reasonix_ctf.bat")
+        self.profile_readme_path = os.path.join(self.workspace_dir, "README.md")
+
+    def _get_prompt_content(self) -> str:
+        try:
+            from ..config_manager import ConfigManager
+            config = ConfigManager().load_config()
+            saved = config.get('ctf_prompts', {}).get('reasonix', {}).get('prompt')
+            if saved:
+                return saved
+        except Exception:
+            pass
+        for tpl in BUILTIN_TEMPLATES.get('reasonix', []):
+            if tpl.get('default'):
+                return tpl['prompt']
+        return REASONIX_CTF_OPTIMIZED
+
+    @staticmethod
+    def _toml_path(path: str) -> str:
+        return os.path.abspath(path).replace("\\", "/")
+
+    def _write_prompt(self, path: str, prompt: str):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(prompt)
+
+    def install(self, custom_prompt: str = None, injection_mode: str = "system_prompt_file") -> tuple[bool, str]:
+        """安装 Reasonix Profile CTF 模式。"""
+        try:
+            prompt = custom_prompt or self._get_prompt_content()
+            os.makedirs(self.workspace_dir, exist_ok=True)
+            self._write_prompt(self.profile_prompt_path, prompt)
+
+            profile_config = "\n".join([
+                f"{REASONIX_MARKER} Reasonix CTF profile managed by reasonix-session-patcher",
+                "config_version = 2",
+                "",
+                "[agent]",
+                f'system_prompt_file = "prompts/{self.DEFAULT_PROMPT_FILE}"',
+                "",
+                "[permissions]",
+                'mode = "allow"',
+                "",
+                "[sandbox]",
+                "network = true",
+                "",
+            ])
+            with open(self.profile_config_path, "w", encoding="utf-8") as f:
+                f.write(profile_config)
+
+            reasonix_desktop = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Reasonix", "reasonix-desktop.exe")
+            launcher = "\n".join([
+                "@echo off",
+                "setlocal",
+                'cd /d "%~dp0"',
+                'echo Starting Reasonix Desktop with local CTF profile...',
+                f'if exist "{reasonix_desktop}" (',
+                f'  start "" "{reasonix_desktop}"',
+                ") else (",
+                "  reasonix.exe chat",
+                ")",
+                "",
+            ])
+            with open(self.profile_launcher_path, "w", encoding="ascii") as f:
+                f.write(launcher)
+
+            readme = f"""# Reasonix CTF Workspace
+
+This workspace is managed by reasonix-session-patcher.
+
+## Start
+
+Double-click:
+
+`{self.profile_launcher_path}`
+
+Reasonix will load this workspace's `reasonix.toml`, which points
+`[agent].system_prompt_file` to `prompts/{self.DEFAULT_PROMPT_FILE}`.
+"""
+            with open(self.profile_readme_path, "w", encoding="utf-8") as f:
+                f.write(readme)
+
+            return True, "\n".join([
+                f"✓ 已创建 Reasonix CTF 工作区: {self.workspace_dir}",
+                f"✓ 已写入 Profile 配置: {self.profile_config_path}",
+                f"✓ 已写入提示词: {self.profile_prompt_path}",
+                f"✓ 已创建启动脚本: {self.profile_launcher_path}",
+                "使用方式：双击 start_reasonix_ctf.bat 从该工作区启动 Reasonix Desktop",
+            ])
+        except Exception as e:
+            return False, f"Reasonix Profile 模式安装失败: {e}"
+
+    def uninstall(self) -> tuple[bool, str]:
+        try:
+            removed = []
+            for path in [self.profile_config_path, self.profile_prompt_path, self.profile_launcher_path, self.profile_readme_path]:
+                if os.path.exists(path):
+                    os.remove(path)
+                    removed.append(path)
+            for path in [self.profile_prompts_dir, self.workspace_dir]:
+                if os.path.isdir(path) and not os.listdir(path):
+                    os.rmdir(path)
+
+            if not removed:
+                return True, "Reasonix Profile 模式未安装"
+            return True, "已卸载 Reasonix Profile 模式:\n" + "\n".join(f"✓ {p}" for p in removed)
+        except Exception as e:
+            return False, f"Reasonix Profile 模式卸载失败: {e}"
+
+    def install_global(self, injection_mode: str = "system_prompt_file", custom_prompt: str = None) -> tuple[bool, str]:
+        """安装 Reasonix 全局 CTF 模式。"""
+        try:
+            prompt = custom_prompt or self._get_prompt_content()
+            self._write_prompt(self.global_prompt_path, prompt)
+
+            os.makedirs(os.path.dirname(self.global_config_path), exist_ok=True)
+            content = ""
+            if os.path.exists(self.global_config_path):
+                content = open(self.global_config_path, "r", encoding="utf-8").read()
+
+            lines = content.splitlines()
+            lines, _ = self._remove_managed_reasonix_agent_block(lines)
+            unmanaged = self._find_unmanaged_reasonix_agent_prompt(lines)
+            if unmanaged:
+                return False, (
+                    f"Reasonix 全局模式安装失败: [agent] 中已有 {unmanaged}。"
+                    "为避免覆盖你的配置，请先手动删除或改用 Profile 模式。"
+                )
+
+            if os.path.exists(self.global_config_path):
+                self._backup_config(self.global_config_path)
+
+            lines = self._insert_reasonix_agent_block(lines, self.global_prompt_path)
+            with open(self.global_config_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines).strip() + "\n")
+
+            return True, "\n".join([
+                "✓ 已启用 Reasonix 全局 CTF 模式",
+                f"✓ 配置文件: {self.global_config_path}",
+                f"✓ 提示词文件: {self.global_prompt_path}",
+                "⚠ 所有新 Reasonix 会话都会加载该提示词；用完请禁用全局模式",
+            ])
+        except Exception as e:
+            return False, f"Reasonix 全局模式安装失败: {e}"
+
+    def uninstall_global(self) -> tuple[bool, str]:
+        try:
+            if not os.path.exists(self.global_config_path):
+                return True, "Reasonix 全局模式未安装"
+            lines = open(self.global_config_path, "r", encoding="utf-8").read().splitlines()
+            lines, found = self._remove_managed_reasonix_agent_block(lines)
+            if not found:
+                return True, "Reasonix 全局模式未安装"
+            self._backup_config(self.global_config_path)
+            with open(self.global_config_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines).strip() + "\n")
+            return True, f"✓ 已从 Reasonix 全局配置移除 CTF 注入: {self.global_config_path}"
+        except Exception as e:
+            return False, f"Reasonix 全局模式卸载失败: {e}"
+
+    def update_profile_prompt(self, prompt: str) -> bool:
+        if not os.path.exists(self.profile_config_path):
+            return False
+        self._write_prompt(self.profile_prompt_path, prompt)
+        return True
+
+    def update_global_prompt(self, prompt: str) -> bool:
+        status = check_ctf_status()
+        if not status.reasonix_global_installed:
+            return False
+        self._write_prompt(self.global_prompt_path, prompt)
+        return True
+
+    def _backup_config(self, path: str) -> Optional[str]:
+        if not os.path.exists(path):
+            return None
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = f"{path}.bak-{timestamp}"
+        shutil.copy2(path, backup_path)
+        return backup_path
+
+    def _remove_managed_reasonix_agent_block(self, lines: list[str]) -> tuple[list[str], bool]:
+        new_lines = []
+        found = False
+        index = 0
+        while index < len(lines):
+            line = lines[index]
+            if REASONIX_MARKER not in line:
+                new_lines.append(line)
+                index += 1
+                continue
+            found = True
+            index += 1
+            if index < len(lines) and re.match(r'^\s*system_prompt_file\s*=', lines[index]):
+                index += 1
+            elif index < len(lines) and re.match(r'^\s*system_prompt\s*=', lines[index]):
+                quote_count = lines[index].count('"""')
+                index += 1
+                while quote_count < 2 and index < len(lines):
+                    quote_count += lines[index].count('"""')
+                    index += 1
+        return new_lines, found
+
+    def _find_unmanaged_reasonix_agent_prompt(self, lines: list[str]) -> Optional[str]:
+        in_agent = False
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("[") and not stripped.startswith("#"):
+                in_agent = stripped == "[agent]"
+                continue
+            if not in_agent or not stripped or stripped.startswith("#"):
+                continue
+            if re.match(r'^system_prompt_file\s*=', stripped):
+                return "system_prompt_file"
+            if re.match(r'^system_prompt\s*=', stripped):
+                return "system_prompt"
+        return None
+
+    def _insert_reasonix_agent_block(self, lines: list[str], prompt_path: str) -> list[str]:
+        prompt_path_toml = self._toml_path(prompt_path)
+        block = [
+            f"{REASONIX_MARKER} Reasonix CTF global mode managed by reasonix-session-patcher",
+            f'system_prompt_file = "{prompt_path_toml}"',
+        ]
+
+        agent_idx = None
+        insert_idx = None
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped == "[agent]":
+                agent_idx = i
+                insert_idx = i + 1
+                j = i + 1
+                while j < len(lines) and not (lines[j].strip().startswith("[") and not lines[j].strip().startswith("#")):
+                    insert_idx = j + 1
+                    j += 1
+                break
+
+        if agent_idx is None:
+            if lines and lines[-1].strip():
+                lines.append("")
+            lines.extend(["[agent]"] + block)
+            return lines
+
+        for line in reversed(block):
+            lines.insert(insert_idx, line)
+        return lines
+
+    def get_status(self) -> CTFStatus:
         return check_ctf_status()
 
 

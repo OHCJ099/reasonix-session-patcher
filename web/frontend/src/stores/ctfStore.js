@@ -1,33 +1,33 @@
-import { defineStore } from 'pinia'
+﻿import { defineStore } from 'pinia'
 import { api, clearCache } from '../services/api'
 
 export const useCTFStore = defineStore('ctf', {
   state: () => ({
-    // CTF 配置状态
     status: null,
     loading: false,
     installLoading: false,
     globalInstallLoading: false,
+    reasonixInstallLoading: false,
+    reasonixGlobalInstallLoading: false,
     claudeInstallLoading: false,
     opencodeInstallLoading: false,
 
-    // 提示词改写
     originalRequest: '',
     rewrittenRequest: '',
     rewriteStrategy: '',
     rewriteLoading: false,
     rewriteError: null,
-    rewriteTarget: 'codex',  // 'codex' | 'claude_code'
+    rewriteTarget: 'reasonix',
 
-    // CTF 提示词内容
     prompts: {
+      reasonix: { prompt: '', is_default: true, is_installed: false, loading: false },
       codex: { prompt: '', is_default: true, is_installed: false, loading: false },
       claude_code: { prompt: '', is_default: true, is_installed: false, loading: false },
       opencode: { prompt: '', is_default: true, is_installed: false, loading: false },
     },
 
-    // CTF 提示词模板
     templates: {
+      reasonix: [],
       codex: [],
       claude_code: [],
       opencode: [],
@@ -35,10 +35,8 @@ export const useCTFStore = defineStore('ctf', {
   }),
 
   actions: {
-    // 获取 CTF 配置状态
     async fetchStatus() {
       this.loading = true
-      // 清除缓存确保获取最新状态
       clearCache('ctf/status')
       try {
         const response = await api.get('/ctf/status')
@@ -50,14 +48,64 @@ export const useCTFStore = defineStore('ctf', {
       }
     },
 
-    // 安装 CTF 配置
+    async installReasonix() {
+      this.reasonixInstallLoading = true
+      try {
+        const response = await api.post('/ctf/reasonix/install')
+        if (response.success && response.status) this.status = response.status
+        return response
+      } catch (error) {
+        return { success: false, message: error.message }
+      } finally {
+        this.reasonixInstallLoading = false
+      }
+    },
+
+    async uninstallReasonix() {
+      this.reasonixInstallLoading = true
+      try {
+        const response = await api.post('/ctf/reasonix/uninstall')
+        if (response.success && response.status) this.status = response.status
+        return response
+      } catch (error) {
+        return { success: false, message: error.message }
+      } finally {
+        this.reasonixInstallLoading = false
+      }
+    },
+
+    async installReasonixGlobal() {
+      this.reasonixGlobalInstallLoading = true
+      try {
+        const response = await api.post('/ctf/reasonix/global/install')
+        if (response.success && response.status) this.status = response.status
+        return response
+      } catch (error) {
+        return { success: false, message: error.message }
+      } finally {
+        this.reasonixGlobalInstallLoading = false
+      }
+    },
+
+    async uninstallReasonixGlobal() {
+      this.reasonixGlobalInstallLoading = true
+      try {
+        const response = await api.post('/ctf/reasonix/global/uninstall')
+        if (response.success && response.status) this.status = response.status
+        return response
+      } catch (error) {
+        return { success: false, message: error.message }
+      } finally {
+        this.reasonixGlobalInstallLoading = false
+      }
+    },
+
+    // Legacy Codex actions kept for API compatibility, hidden from Reasonix-first UI.
     async install(injectionMode = 'append') {
       this.installLoading = true
       try {
         const response = await api.post('/ctf/install', { injection_mode: injectionMode })
-        if (response.success && response.status) {
-          this.status = response.status
-        }
+        if (response.success && response.status) this.status = response.status
         return response
       } catch (error) {
         return { success: false, message: error.message }
@@ -66,14 +114,11 @@ export const useCTFStore = defineStore('ctf', {
       }
     },
 
-    // 卸载 CTF 配置
     async uninstall() {
       this.installLoading = true
       try {
         const response = await api.post('/ctf/uninstall')
-        if (response.success && response.status) {
-          this.status = response.status
-        }
+        if (response.success && response.status) this.status = response.status
         return response
       } catch (error) {
         return { success: false, message: error.message }
@@ -82,14 +127,11 @@ export const useCTFStore = defineStore('ctf', {
       }
     },
 
-    // 启用全局模式 (Codex)
     async installGlobal(injectionMode = 'append') {
       this.globalInstallLoading = true
       try {
         const response = await api.post('/ctf/global/install', { injection_mode: injectionMode })
-        if (response.success && response.status) {
-          this.status = response.status
-        }
+        if (response.success && response.status) this.status = response.status
         return response
       } catch (error) {
         return { success: false, message: error.message }
@@ -98,14 +140,11 @@ export const useCTFStore = defineStore('ctf', {
       }
     },
 
-    // 禁用全局模式 (Codex)
     async uninstallGlobal() {
       this.globalInstallLoading = true
       try {
         const response = await api.post('/ctf/global/uninstall')
-        if (response.success && response.status) {
-          this.status = response.status
-        }
+        if (response.success && response.status) this.status = response.status
         return response
       } catch (error) {
         return { success: false, message: error.message }
@@ -114,14 +153,11 @@ export const useCTFStore = defineStore('ctf', {
       }
     },
 
-    // 安装 Claude Code CTF 配置
     async installClaude() {
       this.claudeInstallLoading = true
       try {
         const response = await api.post('/ctf/claude/install')
-        if (response.success && response.status) {
-          this.status = response.status
-        }
+        if (response.success && response.status) this.status = response.status
         return response
       } catch (error) {
         return { success: false, message: error.message }
@@ -130,14 +166,11 @@ export const useCTFStore = defineStore('ctf', {
       }
     },
 
-    // 卸载 Claude Code CTF 配置
     async uninstallClaude() {
       this.claudeInstallLoading = true
       try {
         const response = await api.post('/ctf/claude/uninstall')
-        if (response.success && response.status) {
-          this.status = response.status
-        }
+        if (response.success && response.status) this.status = response.status
         return response
       } catch (error) {
         return { success: false, message: error.message }
@@ -146,14 +179,11 @@ export const useCTFStore = defineStore('ctf', {
       }
     },
 
-    // 安装 OpenCode CTF 配置
     async installOpencode() {
       this.opencodeInstallLoading = true
       try {
         const response = await api.post('/ctf/opencode/install')
-        if (response.success && response.status) {
-          this.status = response.status
-        }
+        if (response.success && response.status) this.status = response.status
         return response
       } catch (error) {
         return { success: false, message: error.message }
@@ -162,14 +192,11 @@ export const useCTFStore = defineStore('ctf', {
       }
     },
 
-    // 卸载 OpenCode CTF 配置
     async uninstallOpencode() {
       this.opencodeInstallLoading = true
       try {
         const response = await api.post('/ctf/opencode/uninstall')
-        if (response.success && response.status) {
-          this.status = response.status
-        }
+        if (response.success && response.status) this.status = response.status
         return response
       } catch (error) {
         return { success: false, message: error.message }
@@ -178,7 +205,6 @@ export const useCTFStore = defineStore('ctf', {
       }
     },
 
-    // 获取 CTF 提示词
     async fetchPrompt(tool) {
       if (!this.prompts[tool]) return
       this.prompts[tool].loading = true
@@ -194,7 +220,6 @@ export const useCTFStore = defineStore('ctf', {
       }
     },
 
-    // 保存 CTF 提示词
     async savePrompt(tool, prompt) {
       try {
         const response = await api.post(`/ctf/prompt/${tool}`, { prompt })
@@ -208,7 +233,6 @@ export const useCTFStore = defineStore('ctf', {
       }
     },
 
-    // 获取模板列表
     async fetchTemplates(tool) {
       try {
         const response = await api.get(`/ctf/prompt/${tool}/templates`)
@@ -218,39 +242,31 @@ export const useCTFStore = defineStore('ctf', {
       }
     },
 
-    // 获取单个模板的 prompt 内容
     async fetchTemplatePrompt(tool, templateName) {
       const response = await api.get(`/ctf/prompt/${tool}/templates/${encodeURIComponent(templateName)}`)
       return response.prompt || ''
     },
 
-    // 保存当前内容为模板
     async saveTemplate(tool, name, prompt) {
       try {
         const response = await api.post(`/ctf/prompt/${tool}/templates`, { name, prompt })
-        if (response.success) {
-          this.templates[tool] = response.templates
-        }
+        if (response.success) this.templates[tool] = response.templates
         return response
       } catch (error) {
         return { success: false, message: error.message }
       }
     },
 
-    // 删除模板
     async deleteTemplate(tool, templateName) {
       try {
         const response = await api.delete(`/ctf/prompt/${tool}/templates/${encodeURIComponent(templateName)}`)
-        if (response.success) {
-          this.templates[tool] = response.templates
-        }
+        if (response.success) this.templates[tool] = response.templates
         return response
       } catch (error) {
         return { success: false, message: error.message }
       }
     },
 
-    // 恢复默认提示词
     async resetPromptToDefault(tool) {
       try {
         const response = await api.post(`/ctf/prompt/${tool}/reset`)
@@ -264,25 +280,21 @@ export const useCTFStore = defineStore('ctf', {
       }
     },
 
-    // 改写提示词
     async rewritePrompt(originalRequest, target = null) {
       this.rewriteLoading = true
       this.rewriteError = null
       this.originalRequest = originalRequest
-
       try {
         const response = await api.post('/prompt-rewrite', {
           original_request: originalRequest,
           target: target || this.rewriteTarget,
         })
-
         if (response.success) {
           this.rewrittenRequest = response.rewritten
           this.rewriteStrategy = response.strategy
         } else {
           this.rewriteError = response.error
         }
-
         return response
       } catch (error) {
         this.rewriteError = error.message
@@ -292,12 +304,11 @@ export const useCTFStore = defineStore('ctf', {
       }
     },
 
-    // 重置改写状态
     resetRewrite() {
       this.originalRequest = ''
       this.rewrittenRequest = ''
       this.rewriteStrategy = ''
       this.rewriteError = null
-    }
+    },
   }
 })

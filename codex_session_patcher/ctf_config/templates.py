@@ -26,6 +26,9 @@ CLAUDE_CODE_CTF_OPTIMIZED = _load_prompt("claude_code_ctf_optimized.md")
 # ─── OpenCode 专用模板 ──────────────────────────────────────────────────────
 OPENCODE_CTF_OPTIMIZED = _load_prompt("opencode_ctf_optimized.md")
 
+# ─── Reasonix Desktop 专用模板 ──────────────────────────────────────────────
+REASONIX_CTF_OPTIMIZED = _load_prompt("reasonix_ctf_optimized.md")
+
 
 # Codex profile v2 配置模板。Codex CLI 0.134.0+ 通过 ~/.codex/<name>.config.toml 加载 -p <name>。
 CTF_CONFIG_TEMPLATE = '''# Codex CTF profile managed by codex-session-patcher
@@ -38,6 +41,9 @@ developer_instructions = """
 # 各工具的内置模板（用于 UI 模板选择器的预置选项）
 # file 字段：该模板在 ~/.codex/prompts/ 下的目标文件名
 BUILTIN_TEMPLATES: dict = {
+    'reasonix': [
+        {'name': 'Optimized CTF Workflow', 'prompt': REASONIX_CTF_OPTIMIZED, 'file': 'ctf_optimized.md', 'default': True},
+    ],
     'codex': [
         {'name': 'Optimized CTF Workflow', 'prompt': SECURITY_MODE_PROMPT_OPTIMIZED, 'file': 'ctf_optimized.md', 'default': True},
         {'name': 'CTF Private Deploy', 'prompt': SECURITY_MODE_PROMPT, 'file': 'ctf_private_deploy.md'},
